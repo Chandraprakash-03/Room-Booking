@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Room Booking Management System</title>
+</head>
+
+<body>
+    <div class="header">
+        <center>
+            <h1>ROOM BOOKING MANAGEMENT SYSTEM</h1>
+        </center>
+    </div>
+
+    <!-- Step 1: UIN Submission -->
+    <div class="uin-section" id="uinSection">
+        <label for="uin">Enter UIN:</label>
+        <input type="text" id="uin" name="uin" required>
+        <button onclick="submitUIN()">Submit UIN</button>
+    </div>
+
+    <!-- Step 2: MRN Verification -->
+    <div class="mrn-verification" id="mrnVerification" style="display: none;">
+        <label for="mrnDigits">Enter Last 3 Digits of MRN:</label>
+        <input type="text" id="mrnDigits" name="mrnDigits" required>
+        <button onclick="verifyMRN()">Verify MRN</button>
+    </div>
+
+    <!-- Step 3: Room Booking Form -->
+    <form id="bookingForm" onsubmit="submitForm(event)" style="display: none;">
+        <!-- Patient details (readonly) -->
+        <label for="patientName">Patient Name:</label>
+        <input type="text" id="patientName" readonly required>
+
+        <label for="phoneNumber">Phone Number:</label>
+        <input type="text" id="phoneNumber" readonly required>
+
+        <!-- Room booking form fields -->
+        <label for="roomType">Room Type:</label>
+        <select id="roomType" name="roomType" required>
+            <option value="Special">Special</option>
+            <option value="Class A">Class A</option>
+            <option value="Class B">Class B</option>
+            <option value="Class C">Class C</option>
+            <option value="Class D">Class D</option>
+        </select>
+
+        <label for="admissionDate">Admission Date:</label>
+        <input type="date" id="admissionDate" name="admissionDate" required>
+
+        <label for="numberOfDays">Number of Days Stay:</label>
+        <input type="number" id="numberOfDays" name="numberOfDays" required>
+
+        <!-- Buttons for editing and submitting -->
+        <button type="button" onclick="editDetails()">Edit Details</button>
+        <button type="submit">Submit Form</button>
+    </form>
+
+    <!-- Result message -->
+    <div id="resultMessage"></div>
+
+    <script>
+        const backendUrl = 'http://localhost:3000'; // Update with your backend server URL
+        let patientData;
+        // const patientData = {
+        //     name: "John Doe",
+        //     phoneNumber: "1234567890",
+        //     mrn: "P3456145",
+        // };
+
+        async function submitUIN() {
+        const uin = document.getElementById("uin").value;
+        console.log('Request Payload:', JSON.stringify({ uin }));
+
+        try {
+        // Verify UIN with the backend
+        const response = await fetch(`${backendUrl}/api/verify-uin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ uin }),
+        });
+
+        console.log(response); // Log the response for debugging
+
+        if (response.ok) {
+            document.getElementById("uinSection").style.display = "none";
+            document.getElementById("mrnVerification").style.display = "block";
+        } else {
+            console.error('Failed to verify UIN:', response.statusText);
+            // Handle UIN verification failure
+        }
+        } catch (error) {
+        console.error('Error during UIN verification:', error);
+        // Handle UIN verification error
+        }  
+    }
+
+
+    async function verifyMRN() {
+            const uin = document.getElementById("uin").value;
+            const mrnDigits = document.getElementById("mrnDigits").value;
+
+            try {
+                const response = await fetch(`${backendUrl}/api/verify-mrn`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ uin, mrnLastThreeDigits: mrnDigits }),
+                });
+
+                if (response.ok) {
+                    document.getElementById("mrnVerification").style.display = "none";
+                    document.getElementById("bookingForm").style.display = "block";
+
+                    // Fetch patient data from the server
+                    const patientDataResponse = await fetch(`${backendUrl}/api/get-patient-data?uin=${uin}`);
+                    patientData = await patientDataResponse.json();
+
+                    // Fill patient details in the form
+                    document.getElementById("patientName").value = patientData.name;
+                    document.getElementById("phoneNumber").value = patientData.phone;
+                } else {
+                    console.error('Failed to verify MRN:', response.statusText);
+                    // Handle MRN verification failure
+                }
+            } catch (error) {
+                console.error('Error during MRN verification:', error);
+                // Handle MRN verification error
+            }
+        }
+
+function submitForm(event) {
+    event.preventDefault(); // Prevent the form from submitting
+
+    // Check if patientData is defined
+    if (patientData) {
+        // Get form data
+        const roomType = document.getElementById("roomType").value;
+        const admissionDate = document.getElementById("admissionDate").value;
+        const numberOfDays = document.getElementById("numberOfDays").value;
+
+        // Validate form data (you may add more validation as needed)
+
+        // Prepare data for room booking
+        const bookingData = {
+            patient: {
+                name: patientData.name,
+                phone: patientData.phone,
+            },
+            roomType,
+            admissionDate,
+            numberOfDays,
+        };
+
+        // Send the data to your server for room booking
+        fetch(`${backendUrl}/api/book-room`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(bookingData),
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                console.error('Failed to book room:', response.statusText);
+                throw new Error('Failed to book room');
+            }
+        })
+        .then(data => {
+            // Handle the successful room booking
+            const resultMessage = document.getElementById("resultMessage");
+            resultMessage.textContent = `Room booked successfully! Room Number: ${data.bookedRoom.roomNumber} 
+            Total Cost for booked room: ${data.bookedRoom.totalCost}`;
+            resultMessage.style.color = "green";
+
+        })
+        .catch(error => {
+            console.error('Error during room booking:', error);
+            // Handle the room booking error
+            const resultMessage = document.getElementById("resultMessage");
+            resultMessage.textContent = 'Failed to book room. Please try again.';
+            resultMessage.style.color = "red";
+        });
+    } else {
+        console.error('Patient data is not available.');
+        // Handle the case where patient data is not available
+    }
+}
+
+        function editDetails() {
+            // Enable editing of patient details
+            document.getElementById("patientName").readOnly = false;
+            document.getElementById("phoneNumber").readOnly = false;
+        }
+    </script>
+
+</body>
+
+</html>
